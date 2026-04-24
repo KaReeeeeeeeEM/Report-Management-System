@@ -82,6 +82,11 @@ out
 .nuxt
 dist
 
+# Build for electron
+dist-electron
+electron/bundle
+storage
+
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and not Next.js
