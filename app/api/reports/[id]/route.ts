@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireApiSession } from "@/lib/auth";
-import { softDeleteReport, updateReport } from "@/lib/data";
+import { permanentlyDeleteReport, softDeleteReport, updateReport } from "@/lib/data";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -21,15 +21,16 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 }
 
-export async function DELETE(_: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: RouteContext) {
   await requireApiSession();
   const { id } = await context.params;
+  const permanent = new URL(request.url).searchParams.get("permanent") === "true";
 
   try {
-    const report = await softDeleteReport(id);
+    const report = permanent ? await permanentlyDeleteReport(id) : await softDeleteReport(id);
     return NextResponse.json({ ok: true, report });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Could not delete report.";
+    const message = error instanceof Error ? error.message : permanent ? "Could not permanently delete report." : "Could not delete report.";
     return NextResponse.json({ message }, { status: 400 });
   }
 }

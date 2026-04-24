@@ -1,8 +1,8 @@
 import { jwtVerify, SignJWT } from "jose";
 
-export const SESSION_COOKIE_NAME = "rms_session";
+import { SESSION_COOKIE_NAME } from "@/lib/session-constants";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET ?? "change-me-in-production");
+const JWT_SECRET = Buffer.from(process.env.JWT_SECRET ?? "change-me-in-production", "utf8");
 
 export async function createSessionToken(email: string, name: string) {
   return new SignJWT({ email, name })

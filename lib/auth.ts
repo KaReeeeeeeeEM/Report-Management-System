@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { connectToDatabase } from "@/lib/db";
 import { isDesktopEmbeddedMode, readDesktopDatabase } from "@/lib/desktop-db";
 import { AdminModel } from "@/models/Admin";
-import { SESSION_COOKIE_NAME, createSessionCookie, verifySessionToken } from "@/lib/session";
+import { SESSION_COOKIE_NAME } from "@/lib/session-constants";
+import { createSessionCookie, verifySessionToken } from "@/lib/session";
 
 export async function getSession() {
   const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;

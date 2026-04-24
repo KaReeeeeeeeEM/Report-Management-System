@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import { FolderOpen, LockKeyhole } from "lucide-react";
 
 import { LoginForm } from "@/components/dashboard/login-form";
@@ -17,57 +18,66 @@ export default async function LoginPage() {
     redirect("/overview");
   }
   return (
-    <main className="relative min-h-screen overflow-hidden bg-background">
-      <div className="panel-grid absolute inset-0 opacity-40" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.14),_transparent_38%)] dark:bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_34%)]" />
-
-      <div className="relative mx-auto flex min-h-screen max-w-7xl items-center px-6 py-12">
-        <div className="grid w-full gap-10 lg:grid-cols-[1.15fr_0.85fr]">
-          <section className="flex flex-col justify-center gap-8">
-            <Badge className="w-fit rounded-full bg-primary px-4 py-1.5 text-primary-foreground">
-              Report Management System
-            </Badge>
-
-            <div className="space-y-5">
-              <h1 className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
-                Keep your reports in one place and find them when you need them.
-              </h1>
-              <p className="max-w-xl text-base text-muted-foreground sm:text-lg">
-                Sign in to upload reports, view them anytime, and keep track of what was added, opened, or removed.
-              </p>
+    <main className="min-h-screen bg-black/50 px-4 py-4 sm:px-6 sm:py-6">
+      <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-7xl overflow-hidden rounded-2xl bg-card shadow-panel lg:grid-cols-[1.15fr_0.85fr]">
+        <section className="relative hidden min-h-[720px] overflow-hidden lg:block">
+          <Image
+            src="/1.svg"
+            alt="Report Management System visual"
+            fill
+            priority
+            className="object-cover"
+            sizes="(min-width: 1024px) 58vw, 100vw"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,10,10,0.16),rgba(10,10,10,0.72))]" />
+          <div className="absolute inset-x-0 top-0 p-8 xl:p-10">
+            <div className="max-w-xl space-y-5">
+              <Badge className="w-fit rounded-full border border-white/20 bg-white/12 px-4 py-1.5 text-white backdrop-blur">
+                Report Management System
+              </Badge>
+              <div className="space-y-3 text-white">
+                <h1 className="text-4xl font-semibold sm:text-5xl">
+                  Report Management System
+                </h1>
+                <p className="max-w-lg text-base text-white/78 sm:text-lg">
+                  Manage reports, keep project documents organized, and track what was uploaded, viewed, recovered, or removed.
+                </p>
+              </div>
             </div>
+          </div>
 
+          <div className="absolute inset-x-0 bottom-0 p-8 xl:p-10">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Card className="border-border/70 bg-card/70 shadow-panel backdrop-blur">
+              <Card className="border-white/12 bg-black/30 shadow-none backdrop-blur">
                 <CardHeader className="space-y-3">
-                  <FolderOpen className="h-5 w-5 text-foreground" />
-                  <CardTitle className="text-lg">Get started</CardTitle>
+                  <FolderOpen className="h-5 w-5 text-white" />
+                  <CardTitle className="text-lg text-white">Centralized records</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 text-sm text-muted-foreground">
-                  <p>Sign in to add new reports and keep each project in one place.</p>
-                  <p>Open any report later, download it, or update its details when needed.</p>
+                <CardContent className="space-y-2 text-sm text-neutral-400">
+                  <p>Keep project reports in one secure place and retrieve them when needed.</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-border/70 bg-card/70 shadow-panel backdrop-blur">
+              <Card className="border-white/12 bg-black/30 shadow-none backdrop-blur">
                 <CardHeader className="space-y-3">
-                  <LockKeyhole className="h-5 w-5 text-foreground" />
-                  <CardTitle className="text-lg">Stay in control</CardTitle>
+                  <LockKeyhole className="h-5 w-5 text-white" />
+                  <CardTitle className="text-lg text-white">Controlled access</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 text-sm text-muted-foreground">
-                  <p>Keep track of what was added, opened, or removed.</p>
-                  <p>Recover deleted reports anytime from the recycle bin.</p>
-                  <p>Your sign-in details are not shown on this screen.</p>
+                <CardContent className="space-y-2 text-sm text-neutral-400">
+                  <p>Sign in to review reports, recover deleted items, and keep the workspace under control.</p>
                 </CardContent>
               </Card>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <div className="flex items-center justify-center lg:justify-end">
+        <div className="relative flex items-center justify-center bg-background px-6 py-12 sm:px-10 lg:px-14">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_34%)] dark:bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_30%)]" />
+          <div className="relative flex w-full items-center justify-center">
             <LoginForm />
           </div>
         </div>
-      </div>
+      </div> 
     </main>
   );
 }

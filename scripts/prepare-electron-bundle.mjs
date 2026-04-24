@@ -54,6 +54,48 @@ async function flattenStandaloneDependencies() {
   }
 }
 
+async function findPnpmPackageDir(packagePrefix) {
+  const storeEntries = await readdir(pnpmStoreDir, { withFileTypes: true });
+  const entry = storeEntries.find((item) => item.isDirectory() && item.name.startsWith(`${packagePrefix}@`));
+
+  if (!entry) {
+    return null;
+  }
+
+  return path.join(pnpmStoreDir, entry.name, "node_modules");
+}
+
+async function ensureMongoDriverDependencyVersions() {
+  const mongodbStoreDir = await findPnpmPackageDir("mongodb");
+
+  if (!mongodbStoreDir) {
+    return;
+  }
+
+  const packagesToPin = [
+    ["mongodb", path.join(mongodbStoreDir, "mongodb")],
+    ["bson", path.join(mongodbStoreDir, "bson")],
+    ["mongodb-connection-string-url", path.join(mongodbStoreDir, "mongodb-connection-string-url")],
+    ["@mongodb-js/saslprep", path.join(mongodbStoreDir, "@mongodb-js", "saslprep")],
+  ];
+
+  for (const [packageName, sourcePath] of packagesToPin) {
+    const targetPath = path.join(rootNodeModulesDir, packageName);
+
+    await rm(targetPath, { recursive: true, force: true });
+
+    if (packageName.startsWith("@")) {
+      await mkdir(path.dirname(targetPath), { recursive: true });
+    }
+
+    await cp(sourcePath, targetPath, {
+      recursive: true,
+      dereference: true,
+      force: true,
+    });
+  }
+}
+
 await rm(bundleRoot, { recursive: true, force: true });
 await mkdir(appBundleDir, { recursive: true });
 
@@ -71,6 +113,7 @@ await cp(publicDir, path.join(appBundleDir, "public"), {
 });
 
 await flattenStandaloneDependencies();
+await ensureMongoDriverDependencyVersions();
 
 await rm(path.join(appBundleDir, ".env"), { force: true });
 await rm(path.join(appBundleDir, "storage"), { recursive: true, force: true });

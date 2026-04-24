@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { MoreVertical, Pencil, RotateCcw, Trash2, Eye, Download, Plus, Search, ArrowUpDown } from "lucide-react";
+import { MoreVertical, Pencil, RotateCcw, Trash2, Eye, Download, Plus, Search, ArrowUpDown, Share2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
@@ -11,6 +11,7 @@ import { formatReportDate, formatReportDateTime, formatReportSize } from "@/lib/
 import { ConfirmActionDialog } from "@/components/dashboard/confirm-action-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportFormDialog } from "@/components/dashboard/report-form-dialog";
+import { NetworkShareDialog } from "@/components/dashboard/network-share-dialog";
 
 const ReportViewerDialog = dynamic(
   () => import("@/components/dashboard/report-viewer-dialog").then((module) => module.ReportViewerDialog),
@@ -51,8 +53,13 @@ export function ReportsTable({
   const [createOpen, setCreateOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<ReportListItem | null>(null);
   const [viewingReport, setViewingReport] = useState<ReportListItem | null>(null);
+  const [sharingReport, setSharingReport] = useState<ReportListItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ReportListItem | null>(null);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<ReportListItem | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [bulkAction, setBulkAction] = useState<"restore" | "delete" | null>(null);
+  const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -82,6 +89,15 @@ export function ReportsTable({
       return sortDirection === "asc" ? result : -result;
     });
   }, [query, reports, sortDirection, sortField]);
+
+  useEffect(() => {
+    setSelectedReportIds((currentSelection) => currentSelection.filter((reportId) => reports.some((report) => report.id === reportId)));
+  }, [reports]);
+
+  const someVisibleSelected = deletedView && visibleReports.some((report) => selectedReportIds.includes(report.id));
+  const allVisibleSelected =
+    deletedView && visibleReports.length > 0 && visibleReports.every((report) => selectedReportIds.includes(report.id));
+  const selectedReports = deletedView ? reports.filter((report) => selectedReportIds.includes(report.id)) : [];
 
   async function refreshData() {
     router.refresh();
@@ -116,6 +132,113 @@ export function ReportsTable({
 
     toast.success("Report restored successfully.");
     refreshData();
+  }
+
+  async function handleBulkRestore() {
+    if (selectedReportIds.length === 0) return;
+
+    setBulkAction("restore");
+
+    const results = await Promise.all(
+      selectedReportIds.map(async (reportId) => {
+        const response = await fetch(`/api/reports/${reportId}/restore`, { method: "POST" });
+        return response.ok;
+      }),
+    );
+
+    setBulkAction(null);
+
+    if (results.every(Boolean)) {
+      toast.success("Selected reports restored successfully.");
+      setSelectedReportIds([]);
+      refreshData();
+      return;
+    }
+
+    const restoredCount = results.filter(Boolean).length;
+
+    if (restoredCount > 0) {
+      toast.success(`${restoredCount} selected reports were restored.`);
+      setSelectedReportIds((currentSelection) =>
+        currentSelection.filter((reportId, index) => !results[index]),
+      );
+      refreshData();
+      return;
+    }
+
+    toast.error("The selected reports could not be restored right now.");
+  }
+
+  async function handlePermanentDelete() {
+    if (!permanentDeleteTarget) return;
+
+    setBusyId(permanentDeleteTarget.id);
+    const response = await fetch(`/api/reports/${permanentDeleteTarget.id}?permanent=true`, { method: "DELETE" });
+    setBusyId(null);
+
+    if (!response.ok) {
+      toast.error("That report could not be permanently deleted right now.");
+      return;
+    }
+
+    toast.success("Report permanently deleted.");
+    setPermanentDeleteTarget(null);
+    refreshData();
+  }
+
+  async function handleBulkPermanentDelete() {
+    if (selectedReportIds.length === 0) return;
+
+    setBulkAction("delete");
+
+    const results = await Promise.all(
+      selectedReportIds.map(async (reportId) => {
+        const response = await fetch(`/api/reports/${reportId}?permanent=true`, { method: "DELETE" });
+        return response.ok;
+      }),
+    );
+
+    setBulkAction(null);
+    setBulkDeleteOpen(false);
+
+    if (results.every(Boolean)) {
+      toast.success("Selected reports permanently deleted.");
+      setSelectedReportIds([]);
+      refreshData();
+      return;
+    }
+
+    const deletedCount = results.filter(Boolean).length;
+
+    if (deletedCount > 0) {
+      toast.success(`${deletedCount} selected reports were permanently deleted.`);
+      setSelectedReportIds((currentSelection) =>
+        currentSelection.filter((reportId, index) => !results[index]),
+      );
+      refreshData();
+      return;
+    }
+
+    toast.error("The selected reports could not be permanently deleted right now.");
+  }
+
+  function toggleReportSelection(reportId: string, checked: boolean) {
+    setSelectedReportIds((currentSelection) =>
+      checked ? Array.from(new Set([...currentSelection, reportId])) : currentSelection.filter((id) => id !== reportId),
+    );
+  }
+
+  function toggleAllVisibleReports(checked: boolean) {
+    if (!checked) {
+      setSelectedReportIds((currentSelection) =>
+        currentSelection.filter((reportId) => !visibleReports.some((report) => report.id === reportId)),
+      );
+      return;
+    }
+
+    setSelectedReportIds((currentSelection) =>
+      Array.from(new Set([...currentSelection, ...visibleReports.map((report) => report.id)])),
+    );
   }
 
   return (
@@ -167,12 +290,55 @@ export function ReportsTable({
               </div>
             </div>
           ) : null}
+
+          {deletedView ? (
+            <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">
+                  {selectedReportIds.length > 0 ? `${selectedReportIds.length} selected` : "Select reports"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Choose the recycle-bin records you want to recover or permanently delete.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleBulkRestore()}
+                  disabled={selectedReportIds.length === 0 || busyId !== null || bulkAction !== null}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Recover selected
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setBulkDeleteOpen(true)}
+                  disabled={selectedReportIds.length === 0 || busyId !== null || bulkAction !== null}
+                  className="bg-red-600 text-white hover:bg-red-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete selected
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto" data-tour={deletedView ? "recycle-table" : title === "Latest Reports" ? "overview-latest-reports" : "reports-table"}>
             <Table>
               <TableHeader>
                 <TableRow>
+                  {deletedView ? (
+                    <TableHead className="w-[56px]">
+                      <Checkbox
+                        aria-label="Select all recycle bin reports"
+                        checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                        onCheckedChange={(checked) => toggleAllVisibleReports(checked === true)}
+                      />
+                    </TableHead>
+                  ) : null}
                   <TableHead>Report Title</TableHead>
                   <TableHead>Project Name</TableHead>
                   <TableHead>Coordinator</TableHead>
@@ -186,6 +352,15 @@ export function ReportsTable({
                 {visibleReports.length > 0 ? (
                   visibleReports.map((report) => (
                     <TableRow key={report.id}>
+                      {deletedView ? (
+                        <TableCell className="w-[56px]">
+                          <Checkbox
+                            aria-label={`Select ${report.title}`}
+                            checked={selectedReportIds.includes(report.id)}
+                            onCheckedChange={(checked) => toggleReportSelection(report.id, checked === true)}
+                          />
+                        </TableCell>
+                      ) : null}
                       <TableCell>
                         <div className="font-medium">{report.title}</div>
                         <p className="mt-1 text-xs text-muted-foreground">
@@ -220,12 +395,27 @@ export function ReportsTable({
                                 Download
                               </a>
                             </DropdownMenuItem>
+                            {!deletedView ? (
+                              <DropdownMenuItem onClick={() => setSharingReport(report)}>
+                                <Share2 className="mr-2 h-4 w-4" />
+                                Share file
+                              </DropdownMenuItem>
+                            ) : null}
                             <DropdownMenuSeparator />
                             {deletedView ? (
-                              <DropdownMenuItem onClick={() => handleRestore(report)}>
-                                <RotateCcw className="mr-2 h-4 w-4" />
-                                Recover report
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuItem onClick={() => handleRestore(report)}>
+                                  <RotateCcw className="mr-2 h-4 w-4" />
+                                  Recover report
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-red-500 focus:text-red-500"
+                                  onClick={() => setPermanentDeleteTarget(report)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
                             ) : (
                               <>
                                 <DropdownMenuItem onClick={() => setEditingReport(report)}>
@@ -248,7 +438,7 @@ export function ReportsTable({
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                    <TableCell colSpan={deletedView ? 8 : 7} className="py-12 text-center text-muted-foreground">
                       {query.trim()
                         ? "No reports matched your search."
                         : deletedView
@@ -284,6 +474,13 @@ export function ReportsTable({
         report={viewingReport}
         onViewed={refreshData}
       />
+      <NetworkShareDialog
+        open={Boolean(sharingReport)}
+        onOpenChange={(open) => {
+          if (!open) setSharingReport(null);
+        }}
+        report={sharingReport}
+      />
       <ConfirmActionDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {
@@ -298,6 +495,42 @@ export function ReportsTable({
         confirmLabel="Move report"
         pending={busyId === deleteTarget?.id}
         onConfirm={handleDelete}
+      />
+      <ConfirmActionDialog
+        open={Boolean(permanentDeleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setPermanentDeleteTarget(null);
+        }}
+        title="Delete report permanently?"
+        description={
+          permanentDeleteTarget
+            ? `This will permanently delete "${permanentDeleteTarget.title}" and remove its PDF from storage.`
+            : ""
+        }
+        confirmationLabel="Report title"
+        confirmationText={permanentDeleteTarget?.title}
+        confirmationHint="Copy the report title exactly as shown above, then type it here to confirm permanent deletion."
+        confirmLabel="Delete permanently"
+        confirmButtonClassName="bg-red-600 text-white hover:bg-red-700"
+        pending={busyId === permanentDeleteTarget?.id}
+        onConfirm={handlePermanentDelete}
+      />
+      <ConfirmActionDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title="Delete selected reports permanently?"
+        description={
+          selectedReports.length > 0
+            ? `${selectedReports.length} selected reports will be permanently deleted and removed from storage.`
+            : ""
+        }
+        confirmationLabel="Confirmation"
+        confirmationText={selectedReports.length > 0 ? "DELETE" : undefined}
+        confirmationHint='Type "DELETE" to permanently remove all selected recycle-bin reports.'
+        confirmLabel="Delete selected"
+        confirmButtonClassName="bg-red-600 text-white hover:bg-red-700"
+        pending={bulkAction === "delete"}
+        onConfirm={handleBulkPermanentDelete}
       />
     </>
   );

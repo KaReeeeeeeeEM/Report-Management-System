@@ -593,6 +593,33 @@ export async function restoreReport(id: string) {
   return normalizeReport(report);
 }
 
+export async function permanentlyDeleteReport(id: string) {
+  await ensureSeedData();
+
+  if (isDesktopEmbeddedMode()) {
+    const database = await readDesktopDatabase();
+    const reportIndex = database.reports.findIndex((item) => item._id === id);
+
+    if (reportIndex === -1) {
+      throw new Error("Report not found.");
+    }
+
+    const [report] = database.reports.splice(reportIndex, 1);
+    await writeDesktopDatabase(database);
+    await deleteStoredFile(report.filePath);
+    return normalizeReport(report);
+  }
+
+  const report = await ReportModel.findByIdAndDelete(id).lean<ReportDocument | null>();
+
+  if (!report) {
+    throw new Error("Report not found.");
+  }
+
+  await deleteStoredFile(report.filePath);
+  return normalizeReport(report);
+}
+
 export async function getReportFile(id: string, options?: { trackView?: boolean }) {
   await ensureSeedData();
   const trackView = options?.trackView ?? false;

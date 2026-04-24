@@ -50,9 +50,12 @@ export function LoginForm() {
       transition={{ duration: 0.45, ease: "easeOut" }}
       className="w-full max-w-md"
     >
-      <Card className="border-border/70 bg-card/85 shadow-panel backdrop-blur">
+        <Card className="border-border/70 bg-card/85 shadow-panel backdrop-blur">
         <CardHeader className="space-y-3">
-          <CardTitle className="text-2xl">Welcome back</CardTitle>
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">Report Management System</p>
+            <CardTitle className="text-2xl">Welcome back</CardTitle>
+          </div>
           <CardDescription>Enter your details below to open your reports dashboard.</CardDescription>
         </CardHeader>
         <CardContent>
