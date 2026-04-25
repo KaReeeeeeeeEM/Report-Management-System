@@ -3,9 +3,16 @@ import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 
 import { connectToDatabase } from "@/lib/db";
-import { isDesktopEmbeddedMode, readDesktopDatabase, writeDesktopDatabase, type DesktopReportRecord } from "@/lib/desktop-db";
-import { deleteStoredFile, ensureStorageDirectory, loadStoredFile, saveSeedFile, saveUploadedFile } from "@/lib/file-storage";
+import {
+  isDesktopEmbeddedMode,
+  readDesktopDatabase,
+  writeDesktopDatabase,
+  type DesktopReportRecord,
+  type DesktopSharedFileRecord,
+} from "@/lib/desktop-db";
+import { deleteStoredFile, ensureStorageDirectory, loadStoredFile, saveBufferFile, saveSeedFile, saveUploadedFile } from "@/lib/file-storage";
 import { getAdminDefaults } from "@/lib/auth";
+import { requiresDesktopSetup } from "@/lib/desktop-setup";
 import { AdminModel } from "@/models/Admin";
 import { ReportModel } from "@/models/Report";
 import { formatReportSize } from "@/lib/utils";
@@ -25,6 +32,17 @@ export type ReportListItem = {
   createdAt: string;
   lastViewedAt: string | null;
   isDeleted: boolean;
+};
+
+export type SharedFileListItem = {
+  id: string;
+  title: string;
+  fileName: string;
+  size: number;
+  mimeType: string;
+  senderName: string;
+  createdAt: string;
+  lastViewedAt: string | null;
 };
 
 type DashboardSnapshot = {
@@ -162,6 +180,19 @@ function isPdfFile(file: File) {
   return fileName.endsWith(".pdf") && (file.type === "application/pdf" || file.type === "" || file.type === "application/octet-stream");
 }
 
+function normalizeSharedFile(file: DesktopSharedFileRecord): SharedFileListItem {
+  return {
+    id: file.id,
+    title: file.title,
+    fileName: file.fileName,
+    size: file.size,
+    mimeType: file.mimeType,
+    senderName: file.senderName,
+    createdAt: new Date(file.createdAt).toISOString(),
+    lastViewedAt: file.lastViewedAt ? new Date(file.lastViewedAt).toISOString() : null,
+  };
+}
+
 function requireTextField(formData: FormData, key: string, label: string) {
   const value = formData.get(key);
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -190,11 +221,11 @@ export async function ensureSeedData() {
 
     const database = await readDesktopDatabase();
     const defaults = getAdminDefaults();
+    const setupPending = await requiresDesktopSetup();
     let changed = false;
+    let seedOwnerEmail = database.admins[0]?.email ?? defaults.email;
 
-    const admin = database.admins.find((item) => item.email === defaults.email);
-
-    if (!admin) {
+    if (!setupPending && database.admins.length === 0) {
       const now = new Date().toISOString();
       database.admins.push({
         id: randomUUID(),
@@ -205,25 +236,19 @@ export async function ensureSeedData() {
         updatedAt: now,
       });
       changed = true;
-    } else {
-      const passwordMatches = await bcrypt.compare(defaults.password, admin.passwordHash);
-
-      if (admin.name !== defaults.name || !passwordMatches) {
-        admin.name = defaults.name;
-        admin.updatedAt = new Date().toISOString();
-
-        if (!passwordMatches) {
-          admin.passwordHash = await bcrypt.hash(defaults.password, 10);
-        }
-
-        changed = true;
-      }
+      seedOwnerEmail = defaults.email;
+    } else if (database.admins[0]) {
+      seedOwnerEmail = database.admins[0].email;
     }
 
     database.reports = database.reports.map((report) => ({
       ...report,
       isDeleted: report.isDeleted ?? false,
       lastViewedAt: report.lastViewedAt ?? null,
+    }));
+    database.sharedFiles = (database.sharedFiles ?? []).map((sharedFile) => ({
+      ...sharedFile,
+      lastViewedAt: sharedFile.lastViewedAt ?? null,
     }));
 
     if (database.reports.length === 0) {
@@ -247,7 +272,7 @@ export async function ensureSeedData() {
             filePath,
             mimeType: "application/pdf",
             size: pdfBuffer.length,
-            uploadedBy: defaults.email,
+            uploadedBy: seedOwnerEmail,
             lastViewedAt: null,
             isDeleted: false,
             createdAt: createdAtIso,
@@ -350,6 +375,20 @@ export async function getAllReports(options?: { deleted?: boolean }): Promise<Re
     .lean<Array<ReportDocument>>();
 
   return reports.map(normalizeReport);
+}
+
+export async function getAllSharedFiles(): Promise<SharedFileListItem[]> {
+  await ensureSeedData();
+
+  if (!isDesktopEmbeddedMode()) {
+    return [];
+  }
+
+  const database = await readDesktopDatabase();
+
+  return database.sharedFiles
+    .map(normalizeSharedFile)
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
 }
 
 export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
@@ -668,6 +707,71 @@ export async function getReportFile(id: string, options?: { trackView?: boolean 
     mimeType: report.mimeType,
     fileName: report.fileName,
   };
+}
+
+export async function getSharedFile(id: string, options?: { trackView?: boolean }) {
+  await ensureSeedData();
+
+  if (!isDesktopEmbeddedMode()) {
+    throw new Error("Shared files are only available in the desktop app.");
+  }
+
+  const database = await readDesktopDatabase();
+  const sharedFile = database.sharedFiles.find((item) => item.id === id) ?? null;
+
+  if (!sharedFile) {
+    throw new Error("Shared file not found.");
+  }
+
+  if (options?.trackView) {
+    sharedFile.lastViewedAt = new Date().toISOString();
+    sharedFile.updatedAt = new Date().toISOString();
+    await writeDesktopDatabase(database);
+  }
+
+  const buffer = await loadStoredFile(sharedFile.filePath);
+
+  return {
+    buffer,
+    mimeType: sharedFile.mimeType,
+    fileName: sharedFile.fileName,
+  };
+}
+
+export async function importDesktopSharedFile(payload: {
+  fileName: string;
+  reportTitle: string;
+  senderName: string;
+  mimeType: string;
+  content: Buffer | Uint8Array | ArrayBuffer;
+}) {
+  await ensureSeedData();
+
+  if (!isDesktopEmbeddedMode()) {
+    throw new Error("Shared files can only be imported in the desktop app.");
+  }
+
+  const database = await readDesktopDatabase();
+  const savedFile = await saveBufferFile(payload.fileName, payload.content);
+  const now = new Date().toISOString();
+
+  const sharedFileRecord: DesktopSharedFileRecord = {
+    id: randomUUID(),
+    title: payload.reportTitle,
+    fileName: payload.fileName,
+    filePath: savedFile.filePath,
+    size: savedFile.buffer.length,
+    mimeType: payload.mimeType,
+    senderName: payload.senderName,
+    createdAt: now,
+    updatedAt: now,
+    lastViewedAt: null,
+  };
+
+  database.sharedFiles.unshift(sharedFileRecord);
+  await writeDesktopDatabase(database);
+
+  return normalizeSharedFile(sharedFileRecord);
 }
 
 export async function getReportById(id: string) {

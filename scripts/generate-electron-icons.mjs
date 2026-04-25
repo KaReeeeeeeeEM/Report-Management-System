@@ -1,14 +1,13 @@
-import { cp, mkdir, rm } from "node:fs/promises";
+import { access, cp, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
 const rootDir = process.cwd();
-const sourceLogo = path.join(rootDir, "public", "logo.svg");
+const sourceLogo = path.join(rootDir, "public", "tie.png");
 const iconsDir = path.join(rootDir, "electron", "icons");
 const iconSetDir = path.join(iconsDir, "icon.iconset");
 const pngPath = path.join(iconsDir, "logo.png");
 const icnsPath = path.join(iconsDir, "icon.icns");
-const copiedSvgPath = path.join(iconsDir, "logo.svg");
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
@@ -31,19 +30,22 @@ function run(command, args) {
 
 await mkdir(iconsDir, { recursive: true });
 await rm(iconSetDir, { recursive: true, force: true });
-await cp(sourceLogo, copiedSvgPath);
+await cp(sourceLogo, pngPath);
 
-await run("sips", ["-s", "format", "png", sourceLogo, "--out", pngPath]);
-await mkdir(iconSetDir, { recursive: true });
+try {
+  await access(icnsPath);
+} catch {
+  await mkdir(iconSetDir, { recursive: true });
 
-const iconSizes = [16, 32, 128, 256, 512];
+  const iconSizes = [16, 32, 128, 256, 512];
 
-for (const size of iconSizes) {
-  const standardPath = path.join(iconSetDir, `icon_${size}x${size}.png`);
-  const retinaPath = path.join(iconSetDir, `icon_${size}x${size}@2x.png`);
+  for (const size of iconSizes) {
+    const standardPath = path.join(iconSetDir, `icon_${size}x${size}.png`);
+    const retinaPath = path.join(iconSetDir, `icon_${size}x${size}@2x.png`);
 
-  await run("sips", ["-z", `${size}`, `${size}`, pngPath, "--out", standardPath]);
-  await run("sips", ["-z", `${size * 2}`, `${size * 2}`, pngPath, "--out", retinaPath]);
+    await run("sips", ["-z", `${size}`, `${size}`, pngPath, "--out", standardPath]);
+    await run("sips", ["-z", `${size * 2}`, `${size * 2}`, pngPath, "--out", retinaPath]);
+  }
+
+  await run("iconutil", ["-c", "icns", iconSetDir, "-o", icnsPath]);
 }
-
-await run("iconutil", ["-c", "icns", iconSetDir, "-o", icnsPath]);

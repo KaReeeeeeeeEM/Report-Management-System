@@ -18,10 +18,24 @@ type SharedFilePayload = {
 };
 
 type IncomingSharedFile = {
+  sharedFileId: string;
   fileName: string;
   reportTitle: string;
   savedTo: string;
   senderName: string;
+};
+
+type DesktopInstallationState = {
+  userDataPath: string;
+  setupPath: string;
+  databasePath: string;
+  storagePath: string;
+  appBundlePath: string;
+  setupExists: boolean;
+  databaseExists: boolean;
+  storageExists: boolean;
+  appBundleExists: boolean;
+  canUninstall: boolean;
 };
 
 declare global {
@@ -31,6 +45,9 @@ declare global {
       platform: NodeJS.Platform;
       listNetworkDevices: () => Promise<NetworkDevice[]>;
       shareFile: (payload: SharedFilePayload) => Promise<{ savedTo?: string }>;
+      getInstallationState: () => Promise<DesktopInstallationState>;
+      resetInstallationData: () => Promise<DesktopInstallationState>;
+      uninstallApp: () => Promise<{ ok: boolean }>;
       onIncomingShare: (callback: (payload: IncomingSharedFile) => void) => () => void;
     };
   }

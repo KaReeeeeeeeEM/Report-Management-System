@@ -2,6 +2,11 @@
   "name": "report-management-system",
   "version": "0.1.0",
   "private": true,
+  "description": "Desktop and web report management system for document storage, sharing, and review workflows.",
+  "author": {
+    "name": "Kwangu Zabrone",
+    "email": "kwangu.zabrone@tie.go.tz"
+  },
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "pnpm dev:web",
@@ -11,6 +16,14 @@
     "build": "pnpm build:web",
     "build:web": "node scripts/build-web.mjs",
     "build:desktop": "node scripts/generate-electron-icons.mjs && pnpm build:web && node scripts/prepare-electron-bundle.mjs && electron-builder",
+    "build:installer": "node scripts/build-installer.mjs",
+    "build:installer:mac": "node scripts/build-installer.mjs mac",
+    "build:installer:win": "node scripts/build-installer.mjs win",
+    "build:installer:win:x64": "node scripts/build-installer.mjs win x64",
+    "build:installer:win:arm64": "node scripts/build-installer.mjs win arm64",
+    "build:installer:linux": "node scripts/build-installer.mjs linux",
+    "build:installer:linux:x64": "node scripts/build-installer.mjs linux x64",
+    "build:installer:linux:arm64": "node scripts/build-installer.mjs linux arm64",
     "open:desktop": "node scripts/open-desktop-app.mjs",
     "start": "pnpm start:web",
     "start:web": "next start --hostname 127.0.0.1 --port 3001",
@@ -92,12 +105,14 @@
     },
     "win": {
       "target": [
-        "nsis"
+        "nsis",
+        "zip"
       ]
     },
     "linux": {
       "target": [
-        "AppImage"
+        "AppImage",
+        "deb"
       ]
     }
   },

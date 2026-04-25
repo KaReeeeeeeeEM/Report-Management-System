@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 
 import { createSessionCookie, getAdminDefaults, verifyAdminCredentials } from "@/lib/auth";
 import { ensureSeedData } from "@/lib/data";
+import { requiresDesktopSetup } from "@/lib/desktop-setup";
 
 export async function POST(request: Request) {
+  if (await requiresDesktopSetup()) {
+    return NextResponse.json({ message: "Complete desktop setup before signing in." }, { status: 409 });
+  }
+
   await ensureSeedData();
 
   const body = await request.json().catch(() => null);

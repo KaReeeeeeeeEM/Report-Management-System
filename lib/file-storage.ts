@@ -21,6 +21,20 @@ export async function saveUploadedFile(file: File) {
   return { fileName, filePath, buffer };
 }
 
+export async function saveBufferFile(fileName: string, content: Buffer | Uint8Array | ArrayBuffer) {
+  await ensureStorageDirectory();
+  const ext = path.extname(fileName) || "";
+  const storedFileName = `${Date.now()}-${randomUUID()}${ext}`;
+  const filePath = path.join(STORAGE_ROOT, storedFileName);
+  const buffer = Buffer.isBuffer(content)
+    ? content
+    : content instanceof Uint8Array
+      ? Buffer.from(content)
+      : Buffer.from(new Uint8Array(content));
+  await writeFile(filePath, buffer);
+  return { fileName: storedFileName, filePath, buffer };
+}
+
 export async function saveSeedFile(fileName: string, content: Buffer | string) {
   await ensureStorageDirectory();
   const filePath = path.join(STORAGE_ROOT, fileName);

@@ -6,12 +6,17 @@ import { DashboardOnboarding } from "@/components/dashboard/dashboard-onboarding
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { getSession } from "@/lib/auth";
 import { ensureSeedData } from "@/lib/data";
+import { requiresDesktopSetup } from "@/lib/desktop-setup";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  if (await requiresDesktopSetup()) {
+    redirect("/setup");
+  }
+
   await ensureSeedData();
   const session = await getSession();
 

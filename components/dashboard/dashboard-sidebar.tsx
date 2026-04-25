@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Folder, LayoutDashboard, Shield, Trash2 } from "lucide-react";
+import { FileText, LayoutDashboard, Share2, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ import Image from "next/image";
 const navItems = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/reports", label: "Reports", icon: FileText },
+  { href: "/shared", label: "Shared", icon: Share2 },
   { href: "/recycle-bin", label: "Recycle Bin", icon: Trash2 },
 ] as const satisfies ReadonlyArray<{ href: Route; label: string; icon: typeof LayoutDashboard }>;
 

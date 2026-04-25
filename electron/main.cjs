@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const { existsSync } = require("node:fs");
-const { mkdir, writeFile } = require("node:fs/promises");
+const { mkdir, readFile, rm, writeFile } = require("node:fs/promises");
 const http = require("node:http");
 const os = require("node:os");
 const net = require("node:net");
@@ -24,6 +24,144 @@ let shareServer = null;
 let shareServerPort = null;
 let discoverySocket = null;
 const discoveredPeers = new Map();
+
+function getDesktopDataRoot() {
+  return path.join(app.getPath("userData"), "data");
+}
+
+function getDesktopDatabasePath() {
+  return path.join(getDesktopDataRoot(), "desktop-db.json");
+}
+
+function getDesktopSetupPath() {
+  return path.join(getDesktopDataRoot(), "desktop-setup.json");
+}
+
+function getDesktopStorageRoot() {
+  return path.join(app.getPath("userData"), "storage", "reports");
+}
+
+function getDesktopStoragePath() {
+  return path.join(app.getPath("userData"), "storage");
+}
+
+function getDesktopAppBundlePath() {
+  if (process.platform === "darwin") {
+    return path.resolve(process.execPath, "..", "..", "..");
+  }
+
+  return process.execPath;
+}
+
+async function readDesktopDatabase() {
+  const databasePath = getDesktopDatabasePath();
+  await mkdir(path.dirname(databasePath), { recursive: true });
+
+  try {
+    const raw = await readFile(databasePath, "utf8");
+    const parsed = JSON.parse(raw);
+
+    return {
+      admins: Array.isArray(parsed.admins) ? parsed.admins : [],
+      reports: Array.isArray(parsed.reports) ? parsed.reports : [],
+      sharedFiles: Array.isArray(parsed.sharedFiles) ? parsed.sharedFiles : [],
+    };
+  } catch {
+    return {
+      admins: [],
+      reports: [],
+      sharedFiles: [],
+    };
+  }
+}
+
+async function writeDesktopDatabase(database) {
+  const databasePath = getDesktopDatabasePath();
+  await mkdir(path.dirname(databasePath), { recursive: true });
+  await writeFile(databasePath, JSON.stringify(database, null, 2), "utf8");
+}
+
+async function getDesktopInstallationState() {
+  const setupPath = getDesktopSetupPath();
+  const databasePath = getDesktopDatabasePath();
+  const storagePath = getDesktopStoragePath();
+  const appBundlePath = getDesktopAppBundlePath();
+
+  return {
+    userDataPath: app.getPath("userData"),
+    setupPath,
+    databasePath,
+    storagePath,
+    appBundlePath,
+    setupExists: existsSync(setupPath),
+    databaseExists: existsSync(databasePath),
+    storageExists: existsSync(storagePath),
+    appBundleExists: existsSync(appBundlePath),
+    canUninstall: app.isPackaged && process.platform === "darwin",
+  };
+}
+
+async function clearDesktopInstallationData() {
+  await rm(getDesktopDataRoot(), { recursive: true, force: true });
+  await rm(getDesktopStoragePath(), { recursive: true, force: true });
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    await mainWindow.webContents.session.clearStorageData({
+      storages: ["cookies", "localstorage", "indexdb", "serviceworkers", "cachestorage"],
+    });
+  }
+
+  return getDesktopInstallationState();
+}
+
+async function uninstallDesktopApp() {
+  if (!app.isPackaged || process.platform !== "darwin") {
+    throw new Error("Automatic uninstall is currently supported only for packaged macOS builds.");
+  }
+
+  await clearDesktopInstallationData();
+
+  const appBundlePath = getDesktopAppBundlePath();
+
+  if (existsSync(appBundlePath)) {
+    await shell.trashItem(appBundlePath);
+  }
+
+  setTimeout(() => {
+    app.quit();
+  }, 300);
+
+  return { ok: true };
+}
+
+async function persistIncomingSharedFile({ fileBuffer, fileName, reportTitle, senderName, mimeType }) {
+  const database = await readDesktopDatabase();
+  const storageRoot = getDesktopStorageRoot();
+  const extension = path.extname(fileName) || ".pdf";
+  const storedFilePath = path.join(storageRoot, `${Date.now()}-${randomUUID()}${extension}`);
+  const now = new Date().toISOString();
+
+  await mkdir(storageRoot, { recursive: true });
+  await writeFile(storedFilePath, fileBuffer);
+
+  const sharedFile = {
+    id: randomUUID(),
+    title: reportTitle,
+    fileName,
+    filePath: storedFilePath,
+    size: fileBuffer.length,
+    mimeType,
+    senderName,
+    createdAt: now,
+    updatedAt: now,
+    lastViewedAt: null,
+  };
+
+  database.sharedFiles.unshift(sharedFile);
+  await writeDesktopDatabase(database);
+
+  return sharedFile;
+}
 
 function getPreloadPath() {
   return path.join(__dirname, "preload.cjs");
@@ -210,13 +348,24 @@ async function ensureShareServer() {
         const reportTitle = Array.isArray(request.headers["x-report-title"])
           ? request.headers["x-report-title"][0]
           : request.headers["x-report-title"] || originalFileName;
+        const mimeType = Array.isArray(request.headers["content-type"])
+          ? request.headers["content-type"][0]
+          : request.headers["content-type"] || "application/pdf";
         const sharesDirectory = path.join(app.getPath("downloads"), SHARE_SAVE_DIRECTORY_NAME);
         const targetPath = path.join(sharesDirectory, `${Date.now()}-${originalFileName}`);
 
         await mkdir(sharesDirectory, { recursive: true });
         await writeFile(targetPath, fileBuffer);
+        const sharedFile = await persistIncomingSharedFile({
+          fileBuffer,
+          fileName: originalFileName,
+          reportTitle,
+          senderName,
+          mimeType,
+        });
 
         emitIncomingShare({
+          sharedFileId: sharedFile.id,
           fileName: originalFileName,
           reportTitle,
           savedTo: targetPath,
@@ -575,6 +724,9 @@ app.whenReady().then(async () => {
 
   ipcMain.handle("network-share:list-devices", async () => listNetworkDevices());
   ipcMain.handle("network-share:send-file", async (_, payload) => sendFileToPeer(payload));
+  ipcMain.handle("desktop-app:get-installation-state", async () => getDesktopInstallationState());
+  ipcMain.handle("desktop-app:reset-installation-data", async () => clearDesktopInstallationData());
+  ipcMain.handle("desktop-app:uninstall", async () => uninstallDesktopApp());
 
   const appUrl = await resolveAppUrl();
   createWindow(appUrl);

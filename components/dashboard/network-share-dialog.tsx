@@ -150,7 +150,7 @@ export function NetworkShareDialog({ open, onOpenChange, report }: NetworkShareD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[85vh] max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Share2 className="h-5 w-5" />
@@ -160,7 +160,7 @@ export function NetworkShareDialog({ open, onOpenChange, report }: NetworkShareD
         </DialogHeader>
 
         {!isDesktop ? (
-          <div className="space-y-4">
+          <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
             <div className="rounded-lg border border-border bg-muted/20 p-5">
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground">
@@ -189,7 +189,7 @@ export function NetworkShareDialog({ open, onOpenChange, report }: NetworkShareD
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="flex min-h-0 flex-col gap-4 overflow-hidden">
             <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-4 py-3">
               <div className="flex items-center gap-3">
                 <Wifi className="h-4 w-4 text-muted-foreground" />
@@ -204,7 +204,7 @@ export function NetworkShareDialog({ open, onOpenChange, report }: NetworkShareD
               </Button>
             </div>
 
-            <div className="max-h-[360px] space-y-3 overflow-y-auto pr-1">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
               {devices.length > 0 ? (
                 devices.map((device) => (
                   <div

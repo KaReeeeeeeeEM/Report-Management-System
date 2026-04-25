@@ -29,14 +29,29 @@ export type DesktopReportRecord = {
   isDeleted: boolean;
 };
 
+export type DesktopSharedFileRecord = {
+  id: string;
+  title: string;
+  fileName: string;
+  filePath: string;
+  size: number;
+  mimeType: string;
+  senderName: string;
+  createdAt: string;
+  updatedAt: string;
+  lastViewedAt: string | null;
+};
+
 type DesktopDatabase = {
   admins: DesktopAdminRecord[];
   reports: DesktopReportRecord[];
+  sharedFiles: DesktopSharedFileRecord[];
 };
 
 const EMPTY_DATABASE: DesktopDatabase = {
   admins: [],
   reports: [],
+  sharedFiles: [],
 };
 
 function getDesktopDataRoot() {
@@ -64,6 +79,7 @@ export async function readDesktopDatabase(): Promise<DesktopDatabase> {
     return {
       admins: Array.isArray(parsed.admins) ? parsed.admins : [],
       reports: Array.isArray(parsed.reports) ? parsed.reports : [],
+      sharedFiles: Array.isArray(parsed.sharedFiles) ? parsed.sharedFiles : [],
     };
   } catch {
     return { ...EMPTY_DATABASE };

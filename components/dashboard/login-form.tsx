@@ -2,6 +2,7 @@
 
 import type { FormEvent } from "react";
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, LoaderCircle, LogIn } from "lucide-react";
@@ -52,6 +53,16 @@ export function LoginForm() {
     >
         <Card className="border-border/70 bg-card/85 shadow-panel backdrop-blur">
         <CardHeader className="space-y-3">
+          <div className="flex justify-center pb-2">
+            <Image
+              src="/tie.png"
+              alt="TIE logo"
+              width={96}
+              height={96}
+              className="h-20 w-auto object-contain"
+              priority
+            />
+          </div>
           <div className="space-y-1">
             <p className="text-sm font-medium text-muted-foreground">Report Management System</p>
             <CardTitle className="text-2xl">Welcome back</CardTitle>
