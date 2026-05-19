@@ -4,7 +4,13 @@ import { NextResponse } from "next/server";
 
 import { createSessionCookie } from "@/lib/auth";
 import { isDesktopEmbeddedMode, readDesktopDatabase, writeDesktopDatabase } from "@/lib/desktop-db";
-import { getDefaultDeviceName, readDesktopSetupState, requiresDesktopSetup, writeDesktopSetupState } from "@/lib/desktop-setup";
+import {
+  getCurrentDeviceRecoveryIdentity,
+  getDefaultDeviceName,
+  readDesktopSetupState,
+  requiresDesktopSetup,
+  writeDesktopSetupState,
+} from "@/lib/desktop-setup";
 
 type SetupPayload = {
   organizationName?: string;
@@ -56,6 +62,7 @@ export async function POST(request: Request) {
   }
 
   const [database, setupState] = await Promise.all([readDesktopDatabase(), readDesktopSetupState()]);
+  const recoveryIdentity = getCurrentDeviceRecoveryIdentity();
   const now = new Date().toISOString();
   const passwordHash = await bcrypt.hash(password, 10);
   const existingAdmin = database.admins.find((admin) => admin.email === adminEmail);
@@ -83,6 +90,9 @@ export async function POST(request: Request) {
     deviceName,
     adminName,
     adminEmail,
+    registeredHostName: recoveryIdentity.hostName,
+    registeredAccountUsername: recoveryIdentity.accountUsername,
+    showOnboarding: database.reports.length === 0,
     databaseMode: "desktop-embedded",
   });
 

@@ -5,6 +5,7 @@ const ReportSchema = new Schema(
     reportDate: { type: Date, required: true },
     projectName: { type: String, required: true },
     projectCoordinator: { type: String, required: true },
+    supervisor: { type: String, required: true },
     title: { type: String, required: true },
     category: { type: String, required: true },
     status: { type: String, required: true },

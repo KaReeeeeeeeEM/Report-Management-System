@@ -10,6 +10,9 @@ export type DesktopSetupState = {
   deviceName: string | null;
   adminName: string | null;
   adminEmail: string | null;
+  registeredHostName: string | null;
+  registeredAccountUsername: string | null;
+  showOnboarding: boolean;
   databaseMode: "desktop-embedded" | "local-mongodb";
 };
 
@@ -19,6 +22,9 @@ const DEFAULT_SETUP_STATE: DesktopSetupState = {
   deviceName: null,
   adminName: null,
   adminEmail: null,
+  registeredHostName: null,
+  registeredAccountUsername: null,
+  showOnboarding: false,
   databaseMode: "desktop-embedded",
 };
 
@@ -46,6 +52,10 @@ export async function readDesktopSetupState(): Promise<DesktopSetupState> {
       deviceName: typeof parsed.deviceName === "string" ? parsed.deviceName : null,
       adminName: typeof parsed.adminName === "string" ? parsed.adminName : null,
       adminEmail: typeof parsed.adminEmail === "string" ? parsed.adminEmail : null,
+      registeredHostName: typeof parsed.registeredHostName === "string" ? parsed.registeredHostName : null,
+      registeredAccountUsername:
+        typeof parsed.registeredAccountUsername === "string" ? parsed.registeredAccountUsername : null,
+      showOnboarding: parsed.showOnboarding === true,
       databaseMode: parsed.databaseMode === "local-mongodb" ? "local-mongodb" : "desktop-embedded",
     };
   } catch {
@@ -70,4 +80,19 @@ export async function requiresDesktopSetup() {
 
 export function getDefaultDeviceName() {
   return os.hostname() || "Workstation";
+}
+
+export function getCurrentDeviceRecoveryIdentity() {
+  let accountUsername = "unknown-user";
+
+  try {
+    accountUsername = os.userInfo().username || accountUsername;
+  } catch {
+    accountUsername = process.env.USER || process.env.USERNAME || accountUsername;
+  }
+
+  return {
+    hostName: os.hostname() || "unknown-host",
+    accountUsername,
+  };
 }

@@ -33,7 +33,7 @@ const STEP_MAP: Record<string, StepConfig[]> = {
     {
       element: "[data-tour='reports-create']",
       title: "Add a report",
-      intro: "Use this button anytime you want to add a new report PDF.",
+      intro: "Use this button anytime you want to add a new report document.",
     },
     {
       element: "[data-tour='reports-table']",
@@ -60,10 +60,16 @@ const STEP_MAP: Record<string, StepConfig[]> = {
   ],
 };
 
-export function DashboardOnboarding() {
+type DashboardOnboardingProps = {
+  enabled?: boolean;
+};
+
+export function DashboardOnboarding({ enabled = false }: DashboardOnboardingProps) {
   const pathname = usePathname();
 
   useEffect(() => {
+    if (!enabled) return;
+
     const steps = STEP_MAP[pathname];
     if (!steps || typeof window === "undefined") return;
 
@@ -86,7 +92,11 @@ export function DashboardOnboarding() {
           overlayOpacity: 0.7,
         });
 
-        const markDone = () => window.localStorage.setItem(storageKey, "done");
+        const markDone = () => {
+          window.localStorage.setItem(storageKey, "done");
+          void fetch("/api/setup/onboarding", { method: "POST" });
+        };
+
         tour.oncomplete(markDone);
         tour.onexit(markDone);
         tour.start();
@@ -94,7 +104,7 @@ export function DashboardOnboarding() {
     }, 450);
 
     return () => window.clearTimeout(timer);
-  }, [pathname]);
+  }, [enabled, pathname]);
 
   return null;
 }

@@ -3,7 +3,7 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Database, Eye, EyeOff, HardDrive, LaptopMinimal, LoaderCircle, RefreshCcw, ShieldCheck, Trash2 } from "lucide-react";
+import { CheckCircle2, Database, Eye, EyeOff, HardDrive, LaptopMinimal, LoaderCircle, RefreshCcw, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
 
 import type { DesktopSetupState } from "@/lib/desktop-setup";
@@ -39,8 +39,6 @@ export function DesktopSetupWizard({
   const [pending, setPending] = useState(false);
   const [refreshingEnvironment, setRefreshingEnvironment] = useState(false);
   const [installationState, setInstallationState] = useState<InstallationState | null>(null);
-  const [resettingInstallation, setResettingInstallation] = useState(false);
-  const [uninstallingApp, setUninstallingApp] = useState(false);
 
   const mongoStatusLabel = useMemo(() => {
     if (mongo.installed && mongo.reachable) {
@@ -53,10 +51,6 @@ export function DesktopSetupWizard({
 
     return "MongoDB not detected";
   }, [mongo]);
-
-  const hasExistingInstallationFiles = Boolean(
-    installationState?.setupExists || installationState?.databaseExists || installationState?.storageExists,
-  );
 
   useEffect(() => {
     async function loadInstallationState() {
@@ -88,53 +82,6 @@ export function DesktopSetupWizard({
       toast.error("Could not refresh the local installation status.");
     } finally {
       setRefreshingEnvironment(false);
-    }
-  }
-
-  async function handleResetInstallation() {
-    if (!window.desktopApp?.isDesktop) {
-      return;
-    }
-
-    const confirmed = window.confirm("Remove the saved setup, local accounts, and stored desktop files for this installation?");
-
-    if (!confirmed) {
-      return;
-    }
-
-    setResettingInstallation(true);
-
-    try {
-      const nextState = await window.desktopApp.resetInstallationData();
-      setInstallationState(nextState);
-      toast.success("Local installation data was removed.");
-      router.push("/setup");
-      router.refresh();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not remove the local installation data.");
-    } finally {
-      setResettingInstallation(false);
-    }
-  }
-
-  async function handleUninstallApp() {
-    if (!window.desktopApp?.isDesktop || !installationState?.canUninstall) {
-      return;
-    }
-
-    const confirmed = window.confirm("Move this desktop app to Trash and remove its local installation data?");
-
-    if (!confirmed) {
-      return;
-    }
-
-    setUninstallingApp(true);
-
-    try {
-      await window.desktopApp.uninstallApp();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not uninstall the desktop app.");
-      setUninstallingApp(false);
     }
   }
 
@@ -259,34 +206,23 @@ export function DesktopSetupWizard({
                   variant="secondary"
                   className="w-full sm:w-auto"
                   onClick={() => void handleRefreshEnvironment()}
-                  disabled={refreshingEnvironment || pending || resettingInstallation || uninstallingApp}
+                  disabled={refreshingEnvironment || pending}
                 >
                   {refreshingEnvironment ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                   Recheck environment
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                  onClick={() => void handleResetInstallation()}
-                  disabled={!hasExistingInstallationFiles || refreshingEnvironment || pending || resettingInstallation || uninstallingApp}
-                >
-                  {resettingInstallation ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  Clear local installation data
-                </Button>
-                {installationState?.canUninstall ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => void handleUninstallApp()}
-                    disabled={pending || resettingInstallation || uninstallingApp}
-                  >
-                    {uninstallingApp ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    Uninstall desktop app
-                  </Button>
-                ) : null}
               </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/20 p-4">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                <p className="font-medium">Offline password recovery</p>
+              </div>
+              <p className="mt-2 text-muted-foreground">
+                If the admin forgets the password later, recovery on this device asks only for the admin email and the current local
+                computer account username before allowing a reset.
+              </p>
             </div>
           </CardContent>
         </Card>

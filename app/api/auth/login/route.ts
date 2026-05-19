@@ -12,8 +12,8 @@ export async function POST(request: Request) {
   await ensureSeedData();
 
   const body = await request.json().catch(() => null);
-  const email = body?.email?.trim();
-  const password = body?.password;
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  const password = typeof body?.password === "string" ? body.password : "";
 
   if (!email || !password) {
     return NextResponse.json({ message: "Email and password are required." }, { status: 400 });

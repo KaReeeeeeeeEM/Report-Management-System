@@ -11,7 +11,7 @@ export default async function ReportsPage() {
       <ReportsTable
         reports={reports}
         title="Reports"
-        description="View your reports, open any PDF, and keep every project update easy to follow."
+        description="View your reports, preview supported files, and keep every project update easy to follow."
         allowCreate
         enableSearchAndSort
       />

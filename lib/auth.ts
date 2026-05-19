@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { connectToDatabase } from "@/lib/db";
-import { isDesktopEmbeddedMode, readDesktopDatabase } from "@/lib/desktop-db";
+import { isDesktopEmbeddedMode, readDesktopDatabase, writeDesktopDatabase } from "@/lib/desktop-db";
 import { AdminModel } from "@/models/Admin";
 import { SESSION_COOKIE_NAME } from "@/lib/session-constants";
 import { createSessionCookie, verifySessionToken } from "@/lib/session";
@@ -45,6 +45,34 @@ export async function verifyAdminCredentials(email: string, password: string) {
 
   const valid = await bcrypt.compare(password, admin.passwordHash);
   return valid ? admin : null;
+}
+
+export async function updateAdminPassword(email: string, nextPassword: string) {
+  const passwordHash = await bcrypt.hash(nextPassword, 10);
+
+  if (isDesktopEmbeddedMode()) {
+    const database = await readDesktopDatabase();
+    const admin = database.admins.find((item) => item.email === email) ?? null;
+
+    if (!admin) {
+      throw new Error("Admin account not found.");
+    }
+
+    admin.passwordHash = passwordHash;
+    admin.updatedAt = new Date().toISOString();
+    await writeDesktopDatabase(database);
+    return;
+  }
+
+  await connectToDatabase();
+  const admin = await AdminModel.findOne({ email });
+
+  if (!admin) {
+    throw new Error("Admin account not found.");
+  }
+
+  admin.passwordHash = passwordHash;
+  await admin.save();
 }
 
 export function getAdminDefaults() {

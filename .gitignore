@@ -84,6 +84,8 @@ dist
 
 # Build for electron
 dist-electron
+dist-installers
+dist-installers-work
 electron/bundle
 storage
 

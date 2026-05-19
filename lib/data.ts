@@ -10,7 +10,7 @@ import {
   type DesktopReportRecord,
   type DesktopSharedFileRecord,
 } from "@/lib/desktop-db";
-import { deleteStoredFile, ensureStorageDirectory, loadStoredFile, saveBufferFile, saveSeedFile, saveUploadedFile } from "@/lib/file-storage";
+import { deleteStoredFile, ensureStorageDirectory, loadStoredFile, saveBufferFile, saveUploadedFile } from "@/lib/file-storage";
 import { getAdminDefaults } from "@/lib/auth";
 import { requiresDesktopSetup } from "@/lib/desktop-setup";
 import { AdminModel } from "@/models/Admin";
@@ -22,6 +22,7 @@ export type ReportListItem = {
   reportDate: string;
   projectName: string;
   projectCoordinator: string;
+  supervisor: string;
   title: string;
   category: string;
   status: string;
@@ -59,44 +60,12 @@ type DashboardSnapshot = {
   recentReports: ReportListItem[];
 };
 
-const SAMPLE_REPORTS = [
-  {
-    reportDate: "2026-02-18",
-    projectName: "Operations Revamp",
-    projectCoordinator: "Lillian Msuya",
-    title: "Quarterly Operations Summary",
-    category: "Operations",
-    status: "Reviewed",
-    fileName: "quarterly-operations-summary.pdf",
-    content: "Quarterly operations summary for the report management system demo build.",
-  },
-  {
-    reportDate: "2026-03-06",
-    projectName: "Governance Review",
-    projectCoordinator: "Kelvin Mushi",
-    title: "Compliance Checklist",
-    category: "Compliance",
-    status: "Pending Review",
-    fileName: "compliance-checklist.pdf",
-    content: "Compliance notes and outstanding review items.",
-  },
-  {
-    reportDate: "2026-04-10",
-    projectName: "Risk Monitoring",
-    projectCoordinator: "Rehema Kweka",
-    title: "Risk Assessment",
-    category: "Risk",
-    status: "Archived",
-    fileName: "risk-assessment.pdf",
-    content: "Risk assessment report archived for audit reference.",
-  },
-];
-
 type ReportDocument = {
   _id: Types.ObjectId | string;
   reportDate: Date | string;
   projectName: string;
   projectCoordinator: string;
+  supervisor?: string;
   title: string;
   category: string;
   status: string;
@@ -110,48 +79,35 @@ type ReportDocument = {
   isDeleted: boolean;
 };
 
-function buildPdfBuffer(title: string, content: string) {
-  const escapePdfText = (value: string) => value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
-  const safeTitle = escapePdfText(title);
-  const safeContent = escapePdfText(content);
-  const stream = `BT
-/F1 20 Tf
-72 730 Td
-(${safeTitle}) Tj
-0 -34 Td
-/F1 12 Tf
-(${safeContent}) Tj
-ET`;
-
-  const objects = [
-    `1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n`,
-    `2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n`,
-    `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n`,
-    `4 0 obj\n<< /Length ${Buffer.byteLength(stream, "utf8")} >>\nstream\n${stream}\nendstream\nendobj\n`,
-    `5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n`,
-  ];
-
-  let pdf = "%PDF-1.4\n";
-  const offsets: number[] = [];
-
-  objects.forEach((object) => {
-    offsets.push(Buffer.byteLength(pdf, "utf8"));
-    pdf += object;
-  });
-
-  const startXref = Buffer.byteLength(pdf, "utf8");
-  pdf += `xref
-0 ${objects.length + 1}
-0000000000 65535 f 
-${offsets.map((offset) => `${offset.toString().padStart(10, "0")} 00000 n `).join("\n")}
-trailer
-<< /Size ${objects.length + 1} /Root 1 0 R >>
-startxref
-${startXref}
-%%EOF`;
-
-  return Buffer.from(pdf, "utf8");
-}
+const SAMPLE_REPORT_SIGNATURES = [
+  {
+    reportDate: "2026-02-18",
+    projectName: "Operations Revamp",
+    projectCoordinator: "Lillian Msuya",
+    title: "Quarterly Operations Summary",
+    category: "Operations",
+    status: "Reviewed",
+    fileName: "quarterly-operations-summary.pdf",
+  },
+  {
+    reportDate: "2026-03-06",
+    projectName: "Governance Review",
+    projectCoordinator: "Kelvin Mushi",
+    title: "Compliance Checklist",
+    category: "Compliance",
+    status: "Pending Review",
+    fileName: "compliance-checklist.pdf",
+  },
+  {
+    reportDate: "2026-04-10",
+    projectName: "Risk Monitoring",
+    projectCoordinator: "Rehema Kweka",
+    title: "Risk Assessment",
+    category: "Risk",
+    status: "Archived",
+    fileName: "risk-assessment.pdf",
+  },
+] as const;
 
 function normalizeReport(report: ReportDocument): ReportListItem {
   const createdAt = report.createdAt ? new Date(report.createdAt) : new Date();
@@ -162,6 +118,7 @@ function normalizeReport(report: ReportDocument): ReportListItem {
     reportDate: reportDate.toISOString(),
     projectName: report.projectName ?? report.category ?? "General Project",
     projectCoordinator: report.projectCoordinator ?? "Unknown Coordinator",
+    supervisor: report.supervisor ?? "",
     title: report.title,
     category: report.category ?? "Reports",
     status: report.status ?? "Pending Review",
@@ -175,9 +132,47 @@ function normalizeReport(report: ReportDocument): ReportListItem {
   };
 }
 
-function isPdfFile(file: File) {
-  const fileName = file.name.toLowerCase();
-  return fileName.endsWith(".pdf") && (file.type === "application/pdf" || file.type === "" || file.type === "application/octet-stream");
+function isSampleReport(report: {
+  reportDate?: Date | string;
+  projectName?: string;
+  projectCoordinator?: string;
+  title?: string;
+  category?: string;
+  status?: string;
+  fileName?: string;
+}) {
+  const normalizedDate = report.reportDate ? new Date(report.reportDate).toISOString().slice(0, 10) : "";
+
+  return SAMPLE_REPORT_SIGNATURES.some((sample) => {
+    return (
+      normalizedDate === sample.reportDate &&
+      report.projectName === sample.projectName &&
+      report.projectCoordinator === sample.projectCoordinator &&
+      report.title === sample.title &&
+      report.category === sample.category &&
+      report.status === sample.status &&
+      report.fileName === sample.fileName
+    );
+  });
+}
+
+function getMimeTypeFromFile(file: File) {
+  if (file.type) {
+    return file.type;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  switch (extension) {
+    case "pdf":
+      return "application/pdf";
+    case "doc":
+      return "application/msword";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    default:
+      return "application/octet-stream";
+  }
 }
 
 function normalizeSharedFile(file: DesktopSharedFileRecord): SharedFileListItem {
@@ -208,10 +203,6 @@ function parseOptionalFile(formData: FormData) {
     return null;
   }
 
-  if (!isPdfFile(value)) {
-    throw new Error("Only PDF files are allowed.");
-  }
-
   return value;
 }
 
@@ -223,7 +214,6 @@ export async function ensureSeedData() {
     const defaults = getAdminDefaults();
     const setupPending = await requiresDesktopSetup();
     let changed = false;
-    let seedOwnerEmail = database.admins[0]?.email ?? defaults.email;
 
     if (!setupPending && database.admins.length === 0) {
       const now = new Date().toISOString();
@@ -236,13 +226,11 @@ export async function ensureSeedData() {
         updatedAt: now,
       });
       changed = true;
-      seedOwnerEmail = defaults.email;
-    } else if (database.admins[0]) {
-      seedOwnerEmail = database.admins[0].email;
     }
 
     database.reports = database.reports.map((report) => ({
       ...report,
+      supervisor: report.supervisor ?? "",
       isDeleted: report.isDeleted ?? false,
       lastViewedAt: report.lastViewedAt ?? null,
     }));
@@ -251,38 +239,26 @@ export async function ensureSeedData() {
       lastViewedAt: sharedFile.lastViewedAt ?? null,
     }));
 
-    if (database.reports.length === 0) {
-      const reports = await Promise.all(
-        SAMPLE_REPORTS.map(async (report, index) => {
-          const pdfBuffer = buildPdfBuffer(report.title, report.content);
-          const filePath = await saveSeedFile(report.fileName, pdfBuffer);
-          const createdAt = new Date();
-          createdAt.setMonth(createdAt.getMonth() - (SAMPLE_REPORTS.length - index - 1));
-          const createdAtIso = createdAt.toISOString();
+    const retainedReports: DesktopReportRecord[] = [];
+    const deletedFilePaths: string[] = [];
 
-          return {
-            _id: randomUUID(),
-            reportDate: new Date(report.reportDate).toISOString(),
-            projectName: report.projectName,
-            projectCoordinator: report.projectCoordinator,
-            title: report.title,
-            category: report.category,
-            status: report.status,
-            fileName: report.fileName,
-            filePath,
-            mimeType: "application/pdf",
-            size: pdfBuffer.length,
-            uploadedBy: seedOwnerEmail,
-            lastViewedAt: null,
-            isDeleted: false,
-            createdAt: createdAtIso,
-            updatedAt: createdAtIso,
-          } satisfies DesktopReportRecord;
-        }),
-      );
+    database.reports.forEach((report) => {
+      if (isSampleReport(report)) {
+        deletedFilePaths.push(report.filePath);
+        changed = true;
+        return;
+      }
 
-      database.reports = reports;
+      retainedReports.push(report);
+    });
+
+    if (retainedReports.length !== database.reports.length) {
+      database.reports = retainedReports;
+    }
+
+    if (deletedFilePaths.length > 0) {
       changed = true;
+      await Promise.all(deletedFilePaths.map((filePath) => deleteStoredFile(filePath)));
     }
 
     if (changed) {
@@ -304,55 +280,19 @@ export async function ensureSeedData() {
       email: defaults.email,
       passwordHash: await bcrypt.hash(defaults.password, 10),
     });
-  } else {
-    const needsNameUpdate = existingAdmin.name !== defaults.name;
-    const passwordMatches = await bcrypt.compare(defaults.password, existingAdmin.passwordHash);
-
-    if (needsNameUpdate || !passwordMatches) {
-      existingAdmin.name = defaults.name;
-
-      if (!passwordMatches) {
-        existingAdmin.passwordHash = await bcrypt.hash(defaults.password, 10);
-      }
-
-      await existingAdmin.save();
-    }
   }
 
   await ReportModel.updateMany({ isDeleted: { $exists: false } }, { $set: { isDeleted: false } });
   await ReportModel.updateMany({ lastViewedAt: { $exists: false } }, { $set: { lastViewedAt: null } });
+  await ReportModel.updateMany({ supervisor: { $exists: false } }, { $set: { supervisor: "" } });
 
-  const reportCount = await ReportModel.countDocuments();
+  const seededReports = await ReportModel.find().lean<Array<ReportDocument>>();
+  const seededReportIds = seededReports.filter(isSampleReport).map((report) => report._id.toString());
+  const seededFilePaths = seededReports.filter(isSampleReport).map((report) => report.filePath);
 
-  if (reportCount === 0) {
-    const docs = await Promise.all(
-      SAMPLE_REPORTS.map(async (report, index) => {
-        const pdfBuffer = buildPdfBuffer(report.title, report.content);
-        const filePath = await saveSeedFile(report.fileName, pdfBuffer);
-        const createdAt = new Date();
-        createdAt.setMonth(createdAt.getMonth() - (SAMPLE_REPORTS.length - index - 1));
-
-        return {
-          reportDate: new Date(report.reportDate),
-          projectName: report.projectName,
-          projectCoordinator: report.projectCoordinator,
-          title: report.title,
-          category: report.category,
-          status: report.status,
-          fileName: report.fileName,
-          filePath,
-          mimeType: "application/pdf",
-          size: pdfBuffer.length,
-          uploadedBy: defaults.email,
-          lastViewedAt: null,
-          isDeleted: false,
-          createdAt,
-          updatedAt: createdAt,
-        };
-      }),
-    );
-
-    await ReportModel.insertMany(docs);
+  if (seededReportIds.length > 0) {
+    await ReportModel.deleteMany({ _id: { $in: seededReportIds } });
+    await Promise.all(seededFilePaths.map((filePath) => deleteStoredFile(filePath)));
   }
 }
 
@@ -453,14 +393,16 @@ export async function createReport(formData: FormData, uploadedBy: string) {
   const reportDate = requireTextField(formData, "reportDate", "Date");
   const projectName = requireTextField(formData, "projectName", "Project name");
   const projectCoordinator = requireTextField(formData, "projectCoordinator", "Project coordinator");
+  const supervisor = requireTextField(formData, "supervisor", "Supervisor");
   const title = requireTextField(formData, "title", "Report title");
   const file = parseOptionalFile(formData);
 
   if (!file) {
-    throw new Error("A PDF report is required.");
+    throw new Error("A report file is required.");
   }
 
   const storedFile = await saveUploadedFile(file);
+  const mimeType = getMimeTypeFromFile(file);
 
   if (isDesktopEmbeddedMode()) {
     const database = await readDesktopDatabase();
@@ -470,12 +412,13 @@ export async function createReport(formData: FormData, uploadedBy: string) {
       reportDate: new Date(reportDate).toISOString(),
       projectName,
       projectCoordinator,
+      supervisor,
       title,
       category: "Reports",
       status: "Pending Review",
       fileName: file.name,
       filePath: storedFile.filePath,
-      mimeType: "application/pdf",
+      mimeType,
       size: file.size,
       uploadedBy,
       lastViewedAt: null,
@@ -493,12 +436,13 @@ export async function createReport(formData: FormData, uploadedBy: string) {
     reportDate: new Date(reportDate),
     projectName,
     projectCoordinator,
+    supervisor,
     title,
     category: "Reports",
     status: "Pending Review",
     fileName: file.name,
     filePath: storedFile.filePath,
-    mimeType: "application/pdf",
+    mimeType,
     size: file.size,
     uploadedBy,
     lastViewedAt: null,
@@ -522,12 +466,14 @@ export async function updateReport(id: string, formData: FormData) {
     const reportDate = requireTextField(formData, "reportDate", "Date");
     const projectName = requireTextField(formData, "projectName", "Project name");
     const projectCoordinator = requireTextField(formData, "projectCoordinator", "Project coordinator");
+    const supervisor = requireTextField(formData, "supervisor", "Supervisor");
     const title = requireTextField(formData, "title", "Report title");
     const replacementFile = parseOptionalFile(formData);
 
     report.reportDate = new Date(reportDate).toISOString();
     report.projectName = projectName;
     report.projectCoordinator = projectCoordinator;
+    report.supervisor = supervisor;
     report.title = title;
     report.updatedAt = new Date().toISOString();
 
@@ -537,7 +483,7 @@ export async function updateReport(id: string, formData: FormData) {
 
       report.fileName = replacementFile.name;
       report.filePath = storedFile.filePath;
-      report.mimeType = "application/pdf";
+      report.mimeType = getMimeTypeFromFile(replacementFile);
       report.size = replacementFile.size;
 
       await deleteStoredFile(previousPath);
@@ -556,12 +502,14 @@ export async function updateReport(id: string, formData: FormData) {
   const reportDate = requireTextField(formData, "reportDate", "Date");
   const projectName = requireTextField(formData, "projectName", "Project name");
   const projectCoordinator = requireTextField(formData, "projectCoordinator", "Project coordinator");
+  const supervisor = requireTextField(formData, "supervisor", "Supervisor");
   const title = requireTextField(formData, "title", "Report title");
   const replacementFile = parseOptionalFile(formData);
 
   report.reportDate = new Date(reportDate);
   report.projectName = projectName;
   report.projectCoordinator = projectCoordinator;
+  report.supervisor = supervisor;
   report.title = title;
 
   if (replacementFile) {
@@ -570,7 +518,7 @@ export async function updateReport(id: string, formData: FormData) {
 
     report.fileName = replacementFile.name;
     report.filePath = storedFile.filePath;
-    report.mimeType = "application/pdf";
+    report.mimeType = getMimeTypeFromFile(replacementFile);
     report.size = replacementFile.size;
 
     await deleteStoredFile(previousPath);

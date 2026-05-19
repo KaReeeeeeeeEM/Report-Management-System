@@ -32,6 +32,7 @@ export function ReportFormDialog({ open, onOpenChange, mode, report, onSuccess }
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [projectName, setProjectName] = useState("");
   const [projectCoordinator, setProjectCoordinator] = useState("");
+  const [supervisor, setSupervisor] = useState("");
   const [title, setTitle] = useState("");
 
   const dialogTitle = useMemo(() => (mode === "create" ? "New Report" : "Edit Report"), [mode]);
@@ -43,6 +44,7 @@ export function ReportFormDialog({ open, onOpenChange, mode, report, onSuccess }
       setDate(new Date(report.reportDate));
       setProjectName(report.projectName);
       setProjectCoordinator(report.projectCoordinator);
+      setSupervisor(report.supervisor);
       setTitle(report.title);
       return;
     }
@@ -50,6 +52,7 @@ export function ReportFormDialog({ open, onOpenChange, mode, report, onSuccess }
     setDate(new Date());
     setProjectName("");
     setProjectCoordinator("");
+    setSupervisor("");
     setTitle("");
   }, [open, report]);
 
@@ -93,7 +96,7 @@ export function ReportFormDialog({ open, onOpenChange, mode, report, onSuccess }
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>
-            Fill in the details below and attach the PDF you want to keep on the system.
+            Fill in the details below and attach the document you want to keep on the system.
           </DialogDescription>
         </DialogHeader>
 
@@ -126,13 +129,18 @@ export function ReportFormDialog({ open, onOpenChange, mode, report, onSuccess }
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="supervisor">Supervisor</Label>
+            <Input id="supervisor" name="supervisor" value={supervisor} onChange={(event) => setSupervisor(event.target.value)} required />
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="title">Report title</Label>
             <Input id="title" name="title" value={title} onChange={(event) => setTitle(event.target.value)} required />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="file">Report PDF</Label>
-            <Input id="file" name="file" type="file" accept="application/pdf,.pdf" required={mode === "create"} />
+            <Label htmlFor="file">Report file</Label>
+            <Input id="file" name="file" type="file" required={mode === "create"} />
           </div>
 
           <DialogFooter>

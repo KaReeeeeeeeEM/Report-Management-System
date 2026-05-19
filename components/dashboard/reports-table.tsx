@@ -74,6 +74,7 @@ export function ReportsTable({
         report.title,
         report.projectName,
         report.projectCoordinator,
+        report.supervisor,
         report.fileName,
       ].some((value) => value.toLowerCase().includes(normalizedQuery));
     });
@@ -342,6 +343,7 @@ export function ReportsTable({
                   <TableHead>Report Title</TableHead>
                   <TableHead>Project Name</TableHead>
                   <TableHead>Coordinator</TableHead>
+                  <TableHead>Supervisor</TableHead>
                   <TableHead>Report Date</TableHead>
                   <TableHead>Created At</TableHead>
                   <TableHead>Last Viewed At</TableHead>
@@ -369,6 +371,7 @@ export function ReportsTable({
                       </TableCell>
                       <TableCell>{report.projectName}</TableCell>
                       <TableCell>{report.projectCoordinator}</TableCell>
+                      <TableCell>{report.supervisor || "Not provided"}</TableCell>
                       <TableCell>{formatReportDate(report.reportDate)}</TableCell>
                       <TableCell>{formatReportDateTime(report.createdAt)}</TableCell>
                       <TableCell>{formatReportDateTime(report.lastViewedAt)}</TableCell>
@@ -438,7 +441,7 @@ export function ReportsTable({
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={deletedView ? 8 : 7} className="py-12 text-center text-muted-foreground">
+                    <TableCell colSpan={deletedView ? 9 : 8} className="py-12 text-center text-muted-foreground">
                       {query.trim()
                         ? "No reports matched your search."
                         : deletedView

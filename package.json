@@ -17,6 +17,7 @@
     "build:web": "node scripts/build-web.mjs",
     "build:desktop": "node scripts/generate-electron-icons.mjs && pnpm build:web && node scripts/prepare-electron-bundle.mjs && electron-builder",
     "build:installer": "node scripts/build-installer.mjs",
+    "build:installer:all": "node scripts/build-all-installers.mjs",
     "build:installer:mac": "node scripts/build-installer.mjs mac",
     "build:installer:win": "node scripts/build-installer.mjs win",
     "build:installer:win:x64": "node scripts/build-installer.mjs win x64",

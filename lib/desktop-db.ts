@@ -15,6 +15,7 @@ export type DesktopReportRecord = {
   reportDate: string;
   projectName: string;
   projectCoordinator: string;
+  supervisor?: string;
   title: string;
   category: string;
   status: string;

@@ -23,13 +23,12 @@ type ReportViewerDialogProps = {
 
 export function ReportViewerDialog({ open, onOpenChange, report, onViewed }: ReportViewerDialogProps) {
   const fileUrl = useMemo(() => (report ? `/api/reports/${report.id}/file` : null), [report]);
+  const canPreview = report?.mimeType === "application/pdf";
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (open && fileUrl) {
-      setIsLoading(true);
-    }
-  }, [fileUrl, open]);
+    setIsLoading(Boolean(open && fileUrl && canPreview));
+  }, [canPreview, fileUrl, open]);
 
   function handleOpenChange(nextOpen: boolean) {
     onOpenChange(nextOpen);
@@ -51,7 +50,9 @@ export function ReportViewerDialog({ open, onOpenChange, report, onViewed }: Rep
 
         <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-3">
           <div className="text-sm text-muted-foreground">
-            {report?.projectName} • {report?.projectCoordinator}
+            {[report?.projectName, report?.projectCoordinator, report?.supervisor ? `Supervisor: ${report.supervisor}` : null]
+              .filter(Boolean)
+              .join(" • ")}
           </div>
           {report ? (
             <a href={`/api/reports/${report.id}/download`} className="inline-flex">
@@ -65,26 +66,43 @@ export function ReportViewerDialog({ open, onOpenChange, report, onViewed }: Rep
 
         <div className="relative overflow-hidden rounded-xl border border-border bg-muted/20">
           {fileUrl ? (
-            <>
-              {isLoading ? (
-                <div className="absolute inset-0 z-10 h-[72vh] w-full bg-background p-6">
-                  <div className="flex h-full flex-col gap-4 animate-pulse">
-                    <div className="h-6 w-40 rounded-md bg-muted" />
-                    <div className="h-4 w-64 rounded-md bg-muted" />
-                    <div className="mt-2 flex-1 rounded-xl border border-border bg-card p-6">
-                      <div className="mx-auto h-full max-w-3xl rounded-lg bg-muted/70" />
+            canPreview ? (
+              <>
+                {isLoading ? (
+                  <div className="absolute inset-0 z-10 h-[72vh] w-full bg-background p-6">
+                    <div className="flex h-full animate-pulse flex-col gap-4">
+                      <div className="h-6 w-40 rounded-md bg-muted" />
+                      <div className="h-4 w-64 rounded-md bg-muted" />
+                      <div className="mt-2 flex-1 rounded-xl border border-border bg-card p-6">
+                        <div className="mx-auto h-full max-w-3xl rounded-lg bg-muted/70" />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : null}
-              <iframe
-                key={fileUrl}
-                src={fileUrl}
-                title={report?.title ?? "PDF preview"}
-                onLoad={() => setIsLoading(false)}
-                className="h-[72vh] w-full bg-background"
-              />
-            </>
+                ) : null}
+                <iframe
+                  key={fileUrl}
+                  src={fileUrl}
+                  title={report?.title ?? "Document preview"}
+                  onLoad={() => setIsLoading(false)}
+                  className="h-[72vh] w-full bg-background"
+                />
+              </>
+            ) : (
+              <div className="flex h-[72vh] flex-col items-center justify-center gap-3 px-6 text-center">
+                <p className="text-base font-medium">Preview is not available for this file type.</p>
+                <p className="max-w-md text-sm text-muted-foreground">
+                  This document can still be downloaded and opened in its default application.
+                </p>
+                {report ? (
+                  <a href={`/api/reports/${report.id}/download`} className="inline-flex">
+                    <Button variant="outline">
+                      <Download className="h-4 w-4" />
+                      Download file
+                    </Button>
+                  </a>
+                ) : null}
+              </div>
+            )
           ) : (
             <div className="flex h-[72vh] items-center justify-center text-sm text-muted-foreground">
               No document selected.

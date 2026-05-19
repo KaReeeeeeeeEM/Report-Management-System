@@ -102,8 +102,15 @@ async function getDesktopInstallationState() {
 }
 
 async function clearDesktopInstallationData() {
-  await rm(getDesktopDataRoot(), { recursive: true, force: true });
-  await rm(getDesktopStoragePath(), { recursive: true, force: true });
+  const database = await readDesktopDatabase();
+  const setupPath = getDesktopSetupPath();
+
+  await writeDesktopDatabase({
+    admins: [],
+    reports: Array.isArray(database.reports) ? database.reports : [],
+    sharedFiles: Array.isArray(database.sharedFiles) ? database.sharedFiles : [],
+  });
+  await rm(setupPath, { force: true });
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     await mainWindow.webContents.session.clearStorageData({
